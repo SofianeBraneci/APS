@@ -1,0 +1,6 @@
+[
+	VAR z int;
+	PROC addproc [x:int,y:int] [SET z add x y];	
+	CALL addproc 40 2;
+	ECHO (z)
+]

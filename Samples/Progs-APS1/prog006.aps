@@ -1,0 +1,10 @@
+[
+	VAR x int;
+	VAR y int;
+	VAR z int;
+	SET x 40;
+	SET y 2;
+	SET z 2;
+	SET z add x y;
+	ECHO (z)
+]

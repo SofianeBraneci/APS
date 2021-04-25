@@ -1,0 +1,99 @@
+inContext([(Var, Value)|_], Var, Value).
+inContext([(_, _) | RemainingContext], Var, Value):-  inContext(RemainingContext, Var, Value).
+ 
+
+% extract arg names
+
+extract([], []).
+extract([arg(Id, _)| RemainingArgs], [(Id, _ )| RemainingNames]) :- extract(RemainingArgs, RemainingNames).
+
+% eval evalPrams
+
+evalPrams(_,[],[]).
+evalPrams(Env, [E | Exprs], [Value| Values]):- expr(Env, E, Value), evalPrams(Env, Exprs, Values).
+
+link([], [], []).
+link([(X, _) | Exprs],[Value|Values], [(X, Value)| ExprValue]) :- link(Exprs, Values, ExprValue).
+
+
+% expr(ENV, EXPR, VALUE).
+
+expr(_, true, 1).
+expr(_, false, 0).
+expr(_,num(N), R):- R is integer(N).
+expr(Env, ident(Id), N) :- inContext(Env, ident(Id), N).
+
+
+% prim 1
+expr(Env, not(E), 1):- expr(Env, E, 0).
+expr(Env, not(E), 0):- expr(Env, E, 1).
+
+% prim 2
+
+expr(Env, eq(ExprOne, ExprTwo), 1):- expr(Env, ExprOne, V), expr(Env,ExprTwo,V).
+expr(Env, eq(ExprOne, ExprTwo), 0):- expr(Env, ExprOne, V1), expr(Env,ExprTwo,V2), not(V1 = V2).
+
+expr(Env, lt(ExprOne, ExprTwo), 1):- expr(Env, ExprOne, V1), expr(Env,ExprTwo,V2), V1 < V2.
+expr(Env, lt(ExprOne, ExprTwo), 0):- expr(Env, ExprOne, V1), expr(Env,ExprTwo,V2), V1 >= V2.
+
+expr(Env, add(ExprOne, ExprTwo), V):- expr(Env, ExprOne, V1), expr(Env,ExprTwo,V2), V is V1 + V2.
+expr(Env, sub(ExprOne, ExprTwo), V):- expr(Env, ExprOne, V1), expr(Env,ExprTwo,V2), V is V1 - V2.
+expr(Env, mul(ExprOne, ExprTwo), V):- expr(Env, ExprOne, V1), expr(Env,ExprTwo,V2), V is V1 * V2.
+expr(Env, div(ExprOne, ExprTwo), V):- expr(Env, ExprOne, V1), expr(Env,ExprTwo,V2), V is V1 // V2.
+
+expr(Env, and(ExprOne, _), 0):- expr(Env, ExprOne, 0).
+expr(Env, and(ExprOne, ExprTwo), V):- expr(Env, ExprOne, 1), expr(Env,ExprTwo,V).
+
+expr(Env, or(ExprOne,_), 1):- expr(Env, ExprOne,1).
+expr(Env, or(ExprOne, ExprTwo), V):- expr(Env, ExprOne,0), expr(Env,ExprTwo,V).
+
+expr(Env, if(ExprOne, ExprTwo, _), V):- expr(Env, ExprOne,1), expr(Env, ExprTwo,V). 
+expr(Env, if(ExprOne,_, ExprThree),V):- expr(Env, ExprOne,0), expr(Env, ExprThree,V).
+
+expr(Env, abs(Args, E), closure(E, Xs, Env)):- extract(Args, Xs).
+
+
+expr(Env, app(Expr, ListExpr), V):- (inContext(Env, Expr, closure(_,_,_))-> expr(Env, appt(Expr, ListExpr), V); expr(Env, appr(Expr, ListExpr), V) ).
+
+
+expr(Env, appt(Expr, ListExpr), V):-
+    expr(Env,Expr, closure(ExprP, R, EnvExpr) ),
+	evalPrams(Env,ListExpr, Values),
+    link(R, Values, ExprValue),
+    append(ExprValue, EnvExpr, ExtendedEnv),
+    expr(ExtendedEnv, ExprP, V).
+
+expr(Env, appr(F, Es), V) :-
+	expr(Env, F, closure_rec(Xf, Ef, Xs, Envf)),	
+	evalPrams(Env, Es, Vs),	
+	link(Xs, Vs, XsVs),
+	append(XsVs, Envf, EnvfXsVs),
+	expr([(Xf, closure_rec(Xf, Ef, Xs, Envf))|EnvfXsVs], Ef, V).
+
+% stat(ENV, OUT, S, OUT')
+stat(Env, Out, echo(Expr), [N|Out]):- expr(Env, Expr, N).
+
+%dec(ENV, EXPR, NEW ENV)
+
+dec(Env, const(Id, _, Expr), [(Id, N)|Env]):- expr(Env, Expr, N).
+
+dec(Env, fun(Id, _ , ListArgs, Expr), [(Id, closure(Expr, Args, Env)) |Env]) :- extract(ListArgs, Args). 
+
+dec(Env, funrec(Id, _ , ListArgs, Expr), [(Id, closure_rec(Id, Expr, Args, Env)) |Env]) :- extract(ListArgs, Args). 
+
+
+% cmds (environnement, sortie, commandes, environnement', sortie')
+cmds(Env, O, [Dec|CS], Env2, O2) :- dec(Env, Dec, Env1), cmds(Env1, O, CS, Env2, O2).
+
+cmds(Env, O, [Stat|CS], Env1, O2) :-  stat(Env, O, Stat, O1), cmds(Env, O1, CS, Env1, O2).
+
+cmds(Env, O, [], Env, O).
+
+% prog(programme, sortie)
+prog(prog(CS), O) :- cmds([], [], CS, _, O).
+
+main_stdin :-
+	read(user_input, T),
+	prog(T, O),
+	print(O),
+	nl.

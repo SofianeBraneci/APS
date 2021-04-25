@@ -1,0 +1,6 @@
+[
+	VAR x int;
+	SET x 2;
+	SET x 0;
+	ECHO ( x)
+]

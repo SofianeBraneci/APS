@@ -1,0 +1,4 @@
+[
+    FUN f int [x:int](sub x 3);
+    ECHO ( f 43)
+]
